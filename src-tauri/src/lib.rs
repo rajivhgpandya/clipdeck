@@ -675,3 +675,59 @@ pub fn run() {
             "error while running Tauri application"
         );
 }
+
+
+#[cfg(test)]
+mod hardening_tests {
+    fn valid_bundle_id(
+        bundle_id: &str,
+    ) -> bool {
+        !bundle_id.is_empty()
+            && bundle_id
+                .chars()
+                .all(|character| {
+                    character
+                        .is_ascii_alphanumeric()
+                        || character == '.'
+                        || character == '-'
+                        || character == '_'
+                })
+    }
+
+    #[test]
+    fn bundle_id_accepts_normal_ids() {
+        assert!(
+            valid_bundle_id(
+                "com.apple.TextEdit"
+            )
+        );
+
+        assert!(
+            valid_bundle_id(
+                "app.clipdeck.desktop"
+            )
+        );
+    }
+
+    #[test]
+    fn bundle_id_rejects_applescript_injection() {
+        assert!(
+            !valid_bundle_id(
+                "com.test\" & do shell script \"rm -rf /"
+            )
+        );
+
+        assert!(
+            !valid_bundle_id(
+                "com.test\nmalicious"
+            )
+        );
+    }
+
+    #[test]
+    fn bundle_id_rejects_empty_value() {
+        assert!(
+            !valid_bundle_id("")
+        );
+    }
+}

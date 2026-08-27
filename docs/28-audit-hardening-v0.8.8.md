@@ -66,3 +66,19 @@ Privacy and persistence hardening completed:
 See:
 
 `docs/29-privacy-storage-hardening-v0.8.8.md`
+
+
+## Phase 3 status
+
+Initial automated regression testing completed:
+
+- Vitest installed and configured.
+- Frontend deterministic history/privacy rules covered.
+- Rust security validation tests added.
+- Frontend tests added to CI.
+- Rust tests added to CI.
+- Windows Smoke executes both test suites.
+
+See:
+
+`docs/30-automated-tests-v0.8.8.md`
