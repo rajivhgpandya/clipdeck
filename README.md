@@ -73,3 +73,14 @@ Users can display history using:
 Numeric Jump always refers to the visible row position rather than the chronological number.
 
 - Configurable chronological history order
+
+## Build status
+
+The public source tree is continuously validated with GitHub Actions on:
+
+- macOS Apple Silicon
+- Windows x64
+
+The first cross-platform CI validation completed successfully for both platforms.
+
+Windows packaging is validated in CI; full Windows runtime testing is still pending.
