@@ -82,3 +82,27 @@ Initial automated regression testing completed:
 See:
 
 `docs/30-automated-tests-v0.8.8.md`
+
+
+## Phase 4 status
+
+Platform and release hardening completed:
+
+- Frontend tests enforced in CI.
+- Rust tests enforced in CI.
+- Restrictive CSP configured.
+- Main window starts hidden.
+- Enigo scoped to Windows.
+- React sequence updater side effect removed.
+- Version advanced to v0.8.8.
+- Windows runtime status remains explicitly experimental.
+
+Deferred pending real Windows runtime validation:
+
+- explicit Windows foreground restoration;
+- Windows paste timing changes;
+- native sensitive-content clipboard markers.
+
+See:
+
+`docs/31-platform-hardening-v0.8.8.md`

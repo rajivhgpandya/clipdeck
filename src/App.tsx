@@ -325,7 +325,8 @@ function nextSequenceNumber(): number {
 }
 
 function createItem(
-  content: string
+  content: string,
+  sequenceNumber = nextSequenceNumber()
 ): ClipboardItem {
   return {
     id:
@@ -334,8 +335,7 @@ function createItem(
         .toString(36)
         .slice(2),
 
-    sequenceNumber:
-      nextSequenceNumber(),
+    sequenceNumber,
 
     content,
     type: classifyContent(content),
@@ -1029,6 +1029,9 @@ export default function App() {
 
           setMonitoring(true);
 
+          const eventSequenceNumber =
+            nextSequenceNumber();
+
           setItems(
             (current) => {
               const existing =
@@ -1046,7 +1049,7 @@ export default function App() {
                       ? {
                           ...item,
                           sequenceNumber:
-                            nextSequenceNumber(),
+                            eventSequenceNumber,
                           createdAt:
                             Date.now(),
                         }
@@ -1063,7 +1066,8 @@ export default function App() {
 
               const next = [
                 createItem(
-                  content
+                  content,
+                  eventSequenceNumber
                 ),
                 ...current,
               ];

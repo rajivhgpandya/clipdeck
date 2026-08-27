@@ -2,10 +2,11 @@
 
 Local-first clipboard history for macOS and Windows.
 
-**Current release: v0.8.7 Beta**
+**Current release: v0.8.8 Beta**
 
 - macOS Apple Silicon runtime: manually validated
 - Windows x64: build/package/smoke validated in CI; runtime remains experimental
+  - Windows runtime remains experimental until clipboard paste/focus behavior is validated on Windows 10/11 hardware.
 - Distribution: GitHub Releases
 - macOS builds are currently unsigned and not notarized
 ## Stack
