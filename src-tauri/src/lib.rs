@@ -6,7 +6,6 @@ use std::time::Duration;
 use std::process::Command;
 
 #[cfg(target_os = "windows")]
-#[cfg(target_os = "windows")]
 use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Settings,
@@ -97,12 +96,7 @@ fn show_history_window(
             "navigate",
             "history",
         );
-
-        let _ = window.emit(
-            "shortcut-triggered",
-            (),
-        );
-    }
+}
 }
 
 #[tauri::command]
