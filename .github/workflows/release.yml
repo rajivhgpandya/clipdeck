@@ -44,5 +44,5 @@ jobs:
           releaseName: "Clipdeck ${{ github.ref_name }}"
           releaseBody: "Automated Clipdeck build. macOS signing/notarization is not yet production-configured."
           releaseDraft: true
-          prerelease: false
+          prerelease: true
           args: ${{ matrix.args }}
