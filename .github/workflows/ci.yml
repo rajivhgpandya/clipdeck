@@ -29,8 +29,10 @@ jobs:
         with:
           workspaces: ./src-tauri -> target
       - run: npm ci
+      - run: npm test
       - run: npm run build
       - run: cargo check --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Build Tauri bundle
         env:
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}

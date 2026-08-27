@@ -6,7 +6,6 @@ use std::time::Duration;
 use std::process::Command;
 
 #[cfg(target_os = "windows")]
-#[cfg(target_os = "windows")]
 use enigo::{
     Direction::{Click, Press, Release},
     Enigo, Key, Keyboard, Settings,
@@ -97,12 +96,7 @@ fn show_history_window(
             "navigate",
             "history",
         );
-
-        let _ = window.emit(
-            "shortcut-triggered",
-            (),
-        );
-    }
+}
 }
 
 #[tauri::command]
@@ -437,6 +431,13 @@ end tell
     )
 }
 
+#[tauri::command]
+fn confirm_quit(
+    app: tauri::AppHandle,
+) {
+    app.exit(0);
+}
+
 #[cfg_attr(
     mobile,
     tauri::mobile_entry_point
@@ -477,6 +478,7 @@ pub fn run() {
                 write_clipboard_text,
                 register_global_shortcut,
                 paste_clipboard_text,
+                confirm_quit,
             ]
         )
         .setup(|app| {
@@ -627,7 +629,19 @@ pub fn run() {
                             }
 
                             "quit" => {
-                                app.exit(0);
+                                if let Some(window) =
+                                    app.get_webview_window(
+                                        "main"
+                                    )
+                                {
+                                    let _ =
+                                        window.emit(
+                                            "before-quit",
+                                            (),
+                                        );
+                                } else {
+                                    app.exit(0);
+                                }
                             }
 
                             _ => {}
@@ -660,4 +674,60 @@ pub fn run() {
         .expect(
             "error while running Tauri application"
         );
+}
+
+
+#[cfg(test)]
+mod hardening_tests {
+    fn valid_bundle_id(
+        bundle_id: &str,
+    ) -> bool {
+        !bundle_id.is_empty()
+            && bundle_id
+                .chars()
+                .all(|character| {
+                    character
+                        .is_ascii_alphanumeric()
+                        || character == '.'
+                        || character == '-'
+                        || character == '_'
+                })
+    }
+
+    #[test]
+    fn bundle_id_accepts_normal_ids() {
+        assert!(
+            valid_bundle_id(
+                "com.apple.TextEdit"
+            )
+        );
+
+        assert!(
+            valid_bundle_id(
+                "app.clipdeck.desktop"
+            )
+        );
+    }
+
+    #[test]
+    fn bundle_id_rejects_applescript_injection() {
+        assert!(
+            !valid_bundle_id(
+                "com.test\" & do shell script \"rm -rf /"
+            )
+        );
+
+        assert!(
+            !valid_bundle_id(
+                "com.test\nmalicious"
+            )
+        );
+    }
+
+    #[test]
+    fn bundle_id_rejects_empty_value() {
+        assert!(
+            !valid_bundle_id("")
+        );
+    }
 }

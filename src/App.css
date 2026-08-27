@@ -890,3 +890,57 @@ header p,
 .permission-button:hover {
   border-color: var(--accent);
 }
+
+
+/* === PRIVACY STORAGE HARDENING v0.8.8 === */
+
+.monitoring-paused {
+  border-color: #ff9f0a;
+}
+
+.storage-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.storage-notice button {
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.privacy-disclosure {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  background:
+    color-mix(
+      in srgb,
+      #ff9f0a 7%,
+      var(--surface)
+    );
+}
+
+.privacy-disclosure strong {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 12px;
+}
+
+.privacy-disclosure p {
+  margin: 5px 0 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+}
