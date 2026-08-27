@@ -24,6 +24,7 @@ import "./App.css";
 
 type Page = "history" | "settings";
 type HistoryOrder = "newest" | "oldest";
+type RetentionPeriod = "forever" | "1" | "7" | "30";
 type AppearanceMode = "system" | "light" | "dark";
 type AccentMode =
   | "system"
@@ -54,6 +55,13 @@ const STORAGE_ACCENT = "accent";
 const STORAGE_WINDOW_HEIGHT = "windowHeight";
 const STORAGE_SEQUENCE = "clipboardSequence";
 const STORAGE_HISTORY_ORDER = "historyOrder";
+const STORAGE_MONITORING_PAUSED = "monitoringPaused";
+const STORAGE_RETENTION = "historyRetention";
+const STORAGE_CLEAR_ON_QUIT = "clearHistoryOnQuit";
+
+const MAX_CLIPBOARD_ITEM_BYTES =
+  256 * 1024;
+
 
 const isMac =
   navigator.userAgent.toLowerCase().includes("mac");
@@ -80,6 +88,120 @@ function classifyContent(
   }
 
   return "Text";
+}
+
+
+function clipboardByteLength(
+  content: string
+): number {
+  return new TextEncoder()
+    .encode(content)
+    .byteLength;
+}
+
+function applyRetention(
+  items: ClipboardItem[],
+  retention: RetentionPeriod
+): ClipboardItem[] {
+  if (retention === "forever") {
+    return items;
+  }
+
+  const days = Number(retention);
+
+  if (!Number.isFinite(days)) {
+    return items;
+  }
+
+  const threshold =
+    Date.now() -
+    days * 24 * 60 * 60 * 1000;
+
+  return items.filter(
+    (item) =>
+      item.pinned ||
+      item.createdAt >= threshold
+  );
+}
+
+function persistHistoryWithPruning(
+  items: ClipboardItem[]
+): ClipboardItem[] {
+  const tryWrite = (
+    candidate: ClipboardItem[]
+  ): boolean => {
+    try {
+      localStorage.setItem(
+        STORAGE_HISTORY,
+        JSON.stringify(candidate)
+      );
+
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  if (tryWrite(items)) {
+    return items;
+  }
+
+  let candidate = [...items];
+
+  // Remove oldest non-pinned entries first.
+  const nonPinned =
+    candidate
+      .filter((item) => !item.pinned)
+      .sort(
+        (a, b) =>
+          a.createdAt - b.createdAt
+      );
+
+  for (const removable of nonPinned) {
+    candidate =
+      candidate.filter(
+        (item) =>
+          item.id !== removable.id
+      );
+
+    if (tryWrite(candidate)) {
+      return candidate;
+    }
+  }
+
+  // Preserve pinned entries whenever possible.
+  // If pinned content alone exceeds quota,
+  // remove the oldest pinned entries as a
+  // last-resort recovery mechanism.
+  const pinned =
+    candidate
+      .filter((item) => item.pinned)
+      .sort(
+        (a, b) =>
+          a.createdAt - b.createdAt
+      );
+
+  for (const removable of pinned) {
+    candidate =
+      candidate.filter(
+        (item) =>
+          item.id !== removable.id
+      );
+
+    if (tryWrite(candidate)) {
+      return candidate;
+    }
+  }
+
+  try {
+    localStorage.removeItem(
+      STORAGE_HISTORY
+    );
+  } catch {
+    // Nothing else can be recovered here.
+  }
+
+  return [];
 }
 
 function loadHistory(): ClipboardItem[] {
@@ -526,6 +648,61 @@ export default function App() {
   ] = useState(false);
 
   const [
+    monitoringPaused,
+    setMonitoringPaused,
+  ] = useState(
+    localStorage.getItem(
+      STORAGE_MONITORING_PAUSED
+    ) === "true"
+  );
+
+  const monitoringPausedRef =
+    useRef(
+      localStorage.getItem(
+        STORAGE_MONITORING_PAUSED
+      ) === "true"
+    );
+
+  const [
+    retentionPeriod,
+    setRetentionPeriod,
+  ] = useState<RetentionPeriod>(
+    (localStorage.getItem(
+      STORAGE_RETENTION
+    ) as RetentionPeriod) ||
+      "forever"
+  );
+
+  const retentionPeriodRef =
+    useRef<RetentionPeriod>(
+      (localStorage.getItem(
+        STORAGE_RETENTION
+      ) as RetentionPeriod) ||
+        "forever"
+    );
+
+  const [
+    clearHistoryOnQuit,
+    setClearHistoryOnQuit,
+  ] = useState(
+    localStorage.getItem(
+      STORAGE_CLEAR_ON_QUIT
+    ) === "true"
+  );
+
+  const clearHistoryOnQuitRef =
+    useRef(
+      localStorage.getItem(
+        STORAGE_CLEAR_ON_QUIT
+      ) === "true"
+    );
+
+  const [
+    storageNotice,
+    setStorageNotice,
+  ] = useState("");
+
+  const [
     accessibilityGranted,
     setAccessibilityGranted,
   ] = useState<boolean | null>(null);
@@ -620,10 +797,19 @@ export default function App() {
   }
 
   useEffect(() => {
-    localStorage.setItem(
-      STORAGE_HISTORY,
-      JSON.stringify(items)
-    );
+    const persisted =
+      persistHistoryWithPruning(items);
+
+    if (
+      persisted.length !==
+      items.length
+    ) {
+      setStorageNotice(
+        "History was automatically pruned because local storage was full."
+      );
+
+      setItems(persisted);
+    }
   }, [items]);
 
   useEffect(() => {
@@ -632,6 +818,58 @@ export default function App() {
       historyOrder
     );
   }, [historyOrder]);
+
+  useEffect(() => {
+    monitoringPausedRef.current =
+      monitoringPaused;
+
+    localStorage.setItem(
+      STORAGE_MONITORING_PAUSED,
+      String(monitoringPaused)
+    );
+  }, [monitoringPaused]);
+
+  useEffect(() => {
+    retentionPeriodRef.current =
+      retentionPeriod;
+
+    localStorage.setItem(
+      STORAGE_RETENTION,
+      retentionPeriod
+    );
+
+    const applyNow = () => {
+      setItems(
+        (current) =>
+          applyRetention(
+            current,
+            retentionPeriod
+          )
+      );
+    };
+
+    applyNow();
+
+    const timer =
+      window.setInterval(
+        applyNow,
+        60 * 1000
+      );
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [retentionPeriod]);
+
+  useEffect(() => {
+    clearHistoryOnQuitRef.current =
+      clearHistoryOnQuit;
+
+    localStorage.setItem(
+      STORAGE_CLEAR_ON_QUIT,
+      String(clearHistoryOnQuit)
+    );
+  }, [clearHistoryOnQuit]);
 
   useEffect(() => {
     const limit =
@@ -720,6 +958,37 @@ export default function App() {
         }
       );
 
+    const quitListener =
+      listen(
+        "before-quit",
+        async () => {
+          if (
+            clearHistoryOnQuitRef.current
+          ) {
+            try {
+              localStorage.removeItem(
+                STORAGE_HISTORY
+              );
+
+              localStorage.removeItem(
+                STORAGE_SEQUENCE
+              );
+            } catch (error) {
+              console.error(
+                "Unable to clear history before quit:",
+                error
+              );
+            }
+
+            setItems([]);
+          }
+
+          await invoke(
+            "confirm_quit"
+          );
+        }
+      );
+
     const clipboardListener =
       listen<string>(
         "clipboard-changed",
@@ -728,10 +997,30 @@ export default function App() {
             event.payload;
 
           if (
+            monitoringPausedRef.current
+          ) {
+            return;
+          }
+
+          if (
             !content ||
             content ===
               lastClipboardRef.current
           ) {
+            return;
+          }
+
+          if (
+            clipboardByteLength(content) >
+            MAX_CLIPBOARD_ITEM_BYTES
+          ) {
+            lastClipboardRef.current =
+              content;
+
+            setStorageNotice(
+              "Skipped a clipboard item larger than 256 KB."
+            );
+
             return;
           }
 
@@ -797,17 +1086,20 @@ export default function App() {
                       a.createdAt
                   );
 
-              return [
-                ...pinned,
-                ...normal.slice(
-                  0,
-                  Math.max(
+              return applyRetention(
+                [
+                  ...pinned,
+                  ...normal.slice(
                     0,
-                    limit -
-                      pinned.length
-                  )
-                ),
-              ];
+                    Math.max(
+                      0,
+                      limit -
+                        pinned.length
+                    )
+                  ),
+                ],
+                retentionPeriodRef.current
+              );
             }
           );
         }
@@ -819,6 +1111,10 @@ export default function App() {
       );
 
       clipboardListener.then(
+        (fn) => fn()
+      );
+
+      quitListener.then(
         (fn) => fn()
       );
     };
@@ -1552,6 +1848,23 @@ export default function App() {
               />
 
               <div className="history-toolbar-actions">
+                <button
+                  className={
+                    monitoringPaused
+                      ? "secondary monitoring-paused"
+                      : "secondary"
+                  }
+                  onClick={() =>
+                    setMonitoringPaused(
+                      (current) => !current
+                    )
+                  }
+                >
+                  {monitoringPaused
+                    ? "Resume monitoring"
+                    : "Pause monitoring"}
+                </button>
+
                 <select
                   className="history-order-select"
                   value={historyOrder}
@@ -1581,6 +1894,25 @@ export default function App() {
                 </button>
               </div>
             </div>
+
+            {storageNotice && (
+              <div
+                className="storage-notice"
+                role="status"
+              >
+                <span>
+                  {storageNotice}
+                </span>
+
+                <button
+                  onClick={() =>
+                    setStorageNotice("")
+                  }
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
 
             <div className="keyboard-row">
               <div className="keyboard-hint">
@@ -1846,6 +2178,116 @@ export default function App() {
                     500 items
                   </option>
                 </select>
+              </div>
+
+              <div className="setting">
+                <div>
+                  <h3>Pause monitoring</h3>
+
+                  <p>
+                    Stop recording new clipboard
+                    content without quitting Clipdeck.
+                  </p>
+                </div>
+
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={monitoringPaused}
+                    onChange={(event) =>
+                      setMonitoringPaused(
+                        event.target.checked
+                      )
+                    }
+                  />
+                  <span />
+                </label>
+              </div>
+
+              <div className="setting">
+                <div>
+                  <h3>History retention</h3>
+
+                  <p>
+                    Automatically remove old
+                    non-pinned clipboard entries.
+                  </p>
+                </div>
+
+                <select
+                  value={retentionPeriod}
+                  onChange={(event) =>
+                    setRetentionPeriod(
+                      event.target
+                        .value as RetentionPeriod
+                    )
+                  }
+                >
+                  <option value="forever">
+                    Forever
+                  </option>
+
+                  <option value="1">
+                    1 day
+                  </option>
+
+                  <option value="7">
+                    7 days
+                  </option>
+
+                  <option value="30">
+                    30 days
+                  </option>
+                </select>
+              </div>
+
+              <div className="setting">
+                <div>
+                  <h3>
+                    Clear history when quitting
+                  </h3>
+
+                  <p>
+                    Delete all clipboard history
+                    when Clipdeck is explicitly quit.
+                    Closing the window does not clear it.
+                  </p>
+                </div>
+
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={
+                      clearHistoryOnQuit
+                    }
+                    onChange={(event) =>
+                      setClearHistoryOnQuit(
+                        event.target.checked
+                      )
+                    }
+                  />
+                  <span />
+                </label>
+              </div>
+
+              <div className="privacy-disclosure">
+                <strong>
+                  Sensitive clipboard content
+                </strong>
+
+                <p>
+                  Clipdeck stores textual clipboard
+                  history locally and unencrypted.
+                  Passwords, API keys, one-time codes
+                  and other secrets may be recorded
+                  when copied. Pause monitoring before
+                  copying sensitive information.
+                </p>
+
+                <p>
+                  Individual clipboard entries larger
+                  than 256 KB are not stored.
+                </p>
               </div>
 
               <div className="setting">

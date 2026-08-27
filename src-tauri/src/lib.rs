@@ -431,6 +431,13 @@ end tell
     )
 }
 
+#[tauri::command]
+fn confirm_quit(
+    app: tauri::AppHandle,
+) {
+    app.exit(0);
+}
+
 #[cfg_attr(
     mobile,
     tauri::mobile_entry_point
@@ -471,6 +478,7 @@ pub fn run() {
                 write_clipboard_text,
                 register_global_shortcut,
                 paste_clipboard_text,
+                confirm_quit,
             ]
         )
         .setup(|app| {
@@ -621,7 +629,19 @@ pub fn run() {
                             }
 
                             "quit" => {
-                                app.exit(0);
+                                if let Some(window) =
+                                    app.get_webview_window(
+                                        "main"
+                                    )
+                                {
+                                    let _ =
+                                        window.emit(
+                                            "before-quit",
+                                            (),
+                                        );
+                                } else {
+                                    app.exit(0);
+                                }
                             }
 
                             _ => {}

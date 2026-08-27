@@ -50,3 +50,19 @@ Completed items:
 ## Version
 
 Target: Clipdeck v0.8.8
+
+## Phase 2 status
+
+Privacy and persistence hardening completed:
+
+- Pause monitoring.
+- Persistent monitoring state.
+- History retention controls.
+- Clear history on explicit Quit.
+- 256 KB per-item storage limit.
+- localStorage quota recovery and pruning.
+- Sensitive-content disclosure in UI and SECURITY.md.
+
+See:
+
+`docs/29-privacy-storage-hardening-v0.8.8.md`
