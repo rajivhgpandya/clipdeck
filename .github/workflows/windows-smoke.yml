@@ -1,0 +1,81 @@
+name: Windows Smoke
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ./src-tauri -> target
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Frontend build
+        run: npm run build
+
+      - name: Rust check
+        run: cargo check --manifest-path src-tauri/Cargo.toml
+
+      - name: Build Windows installers
+        run: npm run tauri build
+
+      - name: Verify Windows binary
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "src-tauri/target/release" -Filter "clipdeck.exe" -Recurse | Select-Object -First 1
+
+          if (-not $exe) {
+            throw "Clipdeck executable was not generated."
+          }
+
+          Write-Host "Executable:"
+          Write-Host $exe.FullName
+
+          Write-Host "Size:"
+          Write-Host $exe.Length
+
+      - name: Verify installer artifacts
+        shell: pwsh
+        run: |
+          $artifacts = Get-ChildItem -Path "src-tauri/target/release/bundle" -Recurse -File |
+            Where-Object {
+              $_.Extension -eq ".msi" -or
+              $_.Extension -eq ".exe"
+            }
+
+          if (-not $artifacts) {
+            throw "No Windows installer artifacts were generated."
+          }
+
+          Write-Host "Generated installer artifacts:"
+
+          foreach ($artifact in $artifacts) {
+            Write-Host "$($artifact.FullName) [$($artifact.Length) bytes]"
+          }
+
+          $zeroLength = $artifacts | Where-Object { $_.Length -le 0 }
+
+          if ($zeroLength) {
+            throw "One or more installer artifacts are empty."
+          }
